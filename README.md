@@ -1,0 +1,2 @@
+# Rapid Ecosystem Assessment Project
+This project was conducted as a part of the Advanicing Ocean Accounts in Belize for Sustainable Blue Economy Development. It hosts data manipulation, calculation and ggplots display within the coding of this script.  This data set was collected within the pilot area of the project which is the San Pedro, Ambergris Caye East coral reefs (Norther Barrier Complex). Its contains data for a total of 54 REA sites.
