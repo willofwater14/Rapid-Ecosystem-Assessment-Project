@@ -5,7 +5,7 @@ library(gt)
 library(ggrepel)
 
 # Load dataset
-df_rea <- read_xlsx( "C://Users/Wilberto Castillo/OneDrive/Documents/REA_Ocean Accounts/OA_Coral Reef REA Data Template.xlsx",
+df_rea <- read_xlsx( "data_deposit/OA_Coral Reef REA Data Template.xlsx",
                      sheet = "Coral_Community", na = "NA")
 
 # Create wide dataframe
@@ -245,9 +245,9 @@ Surveyor_variability_plot <- ggplot(Surveyor_scores,
 
 # Data visualization outputs
 
-ggsave( "C:/Users/Wilberto Castillo/OneDrive/Documents/REA_Ocean Accounts/Indicator_agreement.png", 
+ggsave( "outputs/Indicator_agreement.png", 
         Indicator_agreement_plot, width = 11, height = 7, dpi = 300)
-ggsave("C:/Users/Wilberto Castillo/OneDrive/Documents/REA_Ocean Accounts/Surveyor_variabilty.png",
+ggsave("outputs/Surveyor_variabilty.png",
        Surveyor_variability_plot, width = 11, height = 7, dpi = 300)
-ggsave("C:/Users/Wilberto Castillo/OneDrive/Documents/REA_Ocean Accounts/Score_difference.png",
+ggsave("outputs/Score_difference.png",
        score_diffrence_plot, width = 11, height = 7, dpi = 300)
