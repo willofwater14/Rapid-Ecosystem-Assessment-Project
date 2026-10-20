@@ -136,6 +136,7 @@ site_indicator_long <- site_indicator_values %>%
 # Testing testing 
 
 summary_rea_clean <- summary_rea %>%
+  filter(grepl("^AMP", Site)) %>%
   mutate(
     Site = gsub("^AMP-", "", Site),
     Site = recode(Site,"BZ1076B" = "1076B"))
@@ -181,7 +182,7 @@ score_diffrence_plot <- ggplot(comparison_df,
     y = "REA Score - AGRRA Score") +
   theme_classic(base_size = 14)
 
-# Pearson comparison for all sites for both AGRRA and REA
+# Pearson comparison of AGRRA vs REA scores at the AMP (master) sites, per indicator
 
 pearson_result <- cor.test(
   comparison_df$AGRRA_score,
@@ -190,19 +191,39 @@ pearson_result <- cor.test(
 r_value <- round(pearson_result$estimate, 3)
 p_value <- pearson_result$p.value
 
+# Pearson r per indicator (NA when an indicator has < 3 sites or no variation in scores)
+pearson_by_indicator <- comparison_df %>%
+  group_by(Indicator_score) %>%
+  summarise(
+    n = n(),
+    testable = n >= 3 & sd(AGRRA_score) > 0 & sd(Rapid_score) > 0,
+    r = if (testable) cor.test(AGRRA_score, Rapid_score, method = "pearson")$estimate else NA_real_,
+    p = if (testable) cor.test(AGRRA_score, Rapid_score, method = "pearson")$p.value else NA_real_,
+    .groups = "drop") %>%
+  mutate(
+    label = ifelse(is.na(r),
+                   paste0("Pearson r = NA\nn = ", n),
+                   paste0("Pearson r = ", round(r, 2), ", p = ", signif(p, 2), "\nn = ", n)))
+print(pearson_by_indicator)
+
 Indicator_agreement_plot <- ggplot(comparison_df,
        aes(x = AGRRA_score, y = Rapid_score, color = Indicator_score)) +
   geom_point(size = 4, alpha = 0.9) +
-  geom_text_repel(aes(label = Site), size = 4, max.overlaps = 30) +
+  geom_text_repel(aes(label = Site), size = 3.5, max.overlaps = 30) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red", linewidth = 0.7) +
   geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 0.6) +
-  annotate("text", x = 3.8, y = 1.2, label = paste0("Pearson r = ", r_value), size = 4) +
+  geom_text(data = pearson_by_indicator,
+            aes(x = 1, y = 5, label = label),
+            inherit.aes = FALSE, hjust = 0, vjust = 1, size = 3.5) +
+  facet_wrap(~Indicator_score) +
+  scale_x_continuous(limits = c(1, 5), breaks = 1:5) +
+  scale_y_continuous(limits = c(1, 5), breaks = 1:5) +
   scale_color_manual(values = c("LCC" = "darkgreen", "FMA" = "orange", "SD"  = "purple","SC"  = "magenta") ) +
   labs(
     x = "AGRRA Score",
-    y = "REA Score",
-    color = "Indicator Score") +
-  theme_classic(base_size = 14)
+    y = "REA Score") +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "none")
 
 # kruksal-wallis test to determine if there is a sig dif between Surveyors
 
