@@ -262,6 +262,44 @@ Score_comparison_bar_plot <- ggplot(score_bars,
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "top")
 
+# One AGRRA point per AMP site with the individual surveyor REA scores around it
+
+rea_surveyor_points <- df_rea %>%
+  filter(grepl("^AMP", Site), Indicator_score %in% c("LCC", "FMA", "SD", "SC")) %>%
+  select(Site, Indicator_score, ANLI, ELAL, NOMC, WICA) %>%
+  pivot_longer(
+    cols = c(ANLI, ELAL, NOMC, WICA),
+    names_to = "Surveyor",
+    values_to = "Score") %>%
+  filter(!is.na(Score)) %>%
+  mutate(
+    Site = gsub("^AMP-", "", Site),
+    Site = recode(Site, "BZ1076B" = "1076B")) %>%
+  semi_join(comparison_df, by = c("Site", "Indicator_score"))
+
+agrra_points <- comparison_df %>%
+  distinct(Site, Indicator_score, AGRRA_score)
+
+AGRRA_vs_REA_points_plot <- ggplot() +
+  geom_jitter(data = rea_surveyor_points,
+              aes(x = Site, y = Score, color = Surveyor),
+              width = 0.15, height = 0.08, size = 3, alpha = 0.7) +
+  geom_point(data = agrra_points,
+             aes(x = Site, y = AGRRA_score, shape = "AGRRA score"),
+             size = 6, color = "black") +
+  facet_wrap(~Indicator_score) +
+  scale_shape_manual(values = c("AGRRA score" = 18)) +
+  scale_y_continuous(limits = c(0.7, 5.3), breaks = 1:5) +
+  labs(
+    x = "AMP Site",
+    y = "Score",
+    color = "REA Surveyor",
+    shape = NULL) +
+  theme_classic(base_size = 17) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top")
+
 # kruksal-wallis test to determine if there is a sig dif between Surveyors
 
 Surveyor_scores <- df_rea %>% 
@@ -312,3 +350,5 @@ ggsave("outputs/Score_difference.png",
        score_diffrence_plot, width = 11, height = 7, dpi = 300)
 ggsave("outputs/Score_comparison_bar.png",
        Score_comparison_bar_plot, width = 12, height = 8, dpi = 300)
+ggsave("outputs/AGRRA_vs_REA_points.png",
+       AGRRA_vs_REA_points_plot, width = 12, height = 8, dpi = 300)
