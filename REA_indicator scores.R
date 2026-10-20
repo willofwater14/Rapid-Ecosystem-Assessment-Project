@@ -256,11 +256,11 @@ Score_comparison_bar_plot <- ggplot(score_bars,
   labs(
     x = "AMP Site",
     y = "Score",
-    fill = "Method") +
+    fill = NULL) +
   theme_classic(base_size = 17) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "top")
+    legend.position = "right")
 
 # One AGRRA point per AMP site with the REA sites inside its buffer zone
 
