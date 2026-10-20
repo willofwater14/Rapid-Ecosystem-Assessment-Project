@@ -220,12 +220,12 @@ print(pearson_by_indicator)
 Indicator_agreement_plot <- ggplot(comparison_df,
        aes(x = AGRRA_score, y = Rapid_score, color = Indicator_score)) +
   geom_point(size = 4, alpha = 0.9) +
-  geom_text_repel(aes(label = Site), size = 3.5, max.overlaps = 30) +
+  geom_text_repel(aes(label = Site), size = 4.5, max.overlaps = 30) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red", linewidth = 0.7) +
   geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 0.6) +
   geom_text(data = pearson_by_indicator,
             aes(x = 1, y = 5, label = label),
-            inherit.aes = FALSE, hjust = 0, vjust = 1, size = 3.5) +
+            inherit.aes = FALSE, hjust = 0, vjust = 1, size = 4.5) +
   facet_wrap(~Indicator_score) +
   scale_x_continuous(limits = c(1, 5), breaks = 1:5) +
   scale_y_continuous(limits = c(1, 5), breaks = 1:5) +
@@ -233,7 +233,7 @@ Indicator_agreement_plot <- ggplot(comparison_df,
   labs(
     x = "AGRRA Score",
     y = "REA Score") +
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 17) +
   theme(legend.position = "none")
 
 # kruksal-wallis test to determine if there is a sig dif between Surveyors
