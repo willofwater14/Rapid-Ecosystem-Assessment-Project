@@ -188,6 +188,7 @@ pearson_result <- cor.test(
   comparison_df$Rapid_score,
   method = "pearson")
 r_value <- round(pearson_result$estimate, 3)
+p_value <- pearson_result$p.value
 
 Indicator_agreement_plot <- ggplot(comparison_df,
        aes(x = AGRRA_score, y = Rapid_score, color = Indicator_score)) +
@@ -242,6 +243,15 @@ Surveyor_variability_plot <- ggplot(Surveyor_scores,
     x = "Surveyor",
     y = "REA Score") +
   theme_classic(base_size = 14)
+
+#Wilcox test 
+
+wilcox_result <- wilcox.test(
+  comparison_df$AGRRA_score,
+  comparison_df$Rapid_score,
+  paired = TRUE, exact = FALSE)
+
+wilcox_result
 
 # Data visualization outputs
 
