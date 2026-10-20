@@ -191,30 +191,42 @@ pearson_result <- cor.test(
 r_value <- round(pearson_result$estimate, 3)
 p_value <- pearson_result$p.value
 
-# Pearson r per indicator (NA when an indicator has < 3 sites or no variation in scores)
+# Pearson r per indicator. Pearson needs >= 3 sites and variation on both axes;
+# when it can't be computed the label says why and gives exact score agreement instead
 pearson_by_indicator <- comparison_df %>%
+  filter(!is.na(AGRRA_score), !is.na(Rapid_score)) %>%
   group_by(Indicator_score) %>%
   summarise(
     n = n(),
-    testable = n >= 3 & sd(AGRRA_score) > 0 & sd(Rapid_score) > 0,
+    agree = sum(AGRRA_score == Rapid_score),
+    agrra_constant = n_distinct(AGRRA_score) == 1,
+    rea_constant = n_distinct(Rapid_score) == 1,
+    agrra_value = first(AGRRA_score),
+    rea_value = first(Rapid_score),
+    testable = n >= 3 & !agrra_constant & !rea_constant,
     r = if (testable) cor.test(AGRRA_score, Rapid_score, method = "pearson")$estimate else NA_real_,
     p = if (testable) cor.test(AGRRA_score, Rapid_score, method = "pearson")$p.value else NA_real_,
     .groups = "drop") %>%
   mutate(
-    label = ifelse(is.na(r),
-                   paste0("Pearson r = NA\nn = ", n),
-                   paste0("Pearson r = ", round(r, 2), ", p = ", signif(p, 2), "\nn = ", n)))
+    p_text = ifelse(!is.na(p) & p < 0.001, "p-value < 0.001", paste0("p-value = ", signif(p, 2))),
+    label = case_when(
+      testable ~ paste0("Pearson r = ", round(r, 2), "\n", p_text, "\nn = ", n),
+      n < 3 ~ paste0("Pearson r: too few sites\nn = ", n),
+      agrra_constant ~ paste0("Pearson r: not computable\n(all AGRRA scores = ", agrra_value, ")\n",
+                              "Exact match = ", agree, "/", n),
+      rea_constant ~ paste0("Pearson r: not computable\n(all REA scores = ", rea_value, ")\n",
+                            "Exact match = ", agree, "/", n)))
 print(pearson_by_indicator)
 
 Indicator_agreement_plot <- ggplot(comparison_df,
        aes(x = AGRRA_score, y = Rapid_score, color = Indicator_score)) +
   geom_point(size = 4, alpha = 0.9) +
-  geom_text_repel(aes(label = Site), size = 3.5, max.overlaps = 30) +
+  geom_text_repel(aes(label = Site), size = 4.5, max.overlaps = 30) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red", linewidth = 0.7) +
   geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 0.6) +
   geom_text(data = pearson_by_indicator,
             aes(x = 1, y = 5, label = label),
-            inherit.aes = FALSE, hjust = 0, vjust = 1, size = 3.5) +
+            inherit.aes = FALSE, hjust = 0, vjust = 1, size = 4.5) +
   facet_wrap(~Indicator_score) +
   scale_x_continuous(limits = c(1, 5), breaks = 1:5) +
   scale_y_continuous(limits = c(1, 5), breaks = 1:5) +
@@ -222,8 +234,102 @@ Indicator_agreement_plot <- ggplot(comparison_df,
   labs(
     x = "AGRRA Score",
     y = "REA Score") +
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 17) +
   theme(legend.position = "none")
+
+# Bar chart comparing AGRRA and REA scores at each AMP site, per indicator
+
+score_bars <- comparison_df %>%
+  select(Site, Indicator_score, AGRRA = AGRRA_score, REA = Rapid_score) %>%
+  pivot_longer(
+    cols = c(AGRRA, REA),
+    names_to = "Method",
+    values_to = "Score")
+
+Score_comparison_bar_plot <- ggplot(score_bars,
+       aes(x = Site, y = Score, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+  geom_text(aes(label = Score),
+            position = position_dodge(width = 0.8), vjust = -0.4, size = 4.5) +
+  facet_wrap(~Indicator_score) +
+  scale_y_continuous(limits = c(0, 5.5), breaks = 0:5, expand = c(0, 0)) +
+  scale_fill_manual(values = c("AGRRA" = "#2c7bb6", "REA" = "#fdae61")) +
+  labs(
+    x = "AMP Site",
+    y = "Score",
+    fill = "Method") +
+  theme_classic(base_size = 17) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top")
+
+# One AGRRA point per AMP site with the REA sites inside its buffer zone
+
+buffer_m <- 800   # buffer radius around each AMP site, in metres
+
+haversine_m <- function(lat1, lon1, lat2, lon2) {
+  rad <- pi / 180
+  dlat <- (lat2 - lat1) * rad
+  dlon <- (lon2 - lon1) * rad
+  a <- sin(dlat / 2)^2 + cos(lat1 * rad) * cos(lat2 * rad) * sin(dlon / 2)^2
+  2 * 6371000 * asin(sqrt(a))
+}
+
+site_coords <- df_rea %>%
+  mutate(Site = trimws(Site)) %>%
+  group_by(Site) %>%
+  summarise(Latitude = first(Latitude), Longitude = first(Longitude), .groups = "drop")
+
+amp_coords <- site_coords %>%
+  filter(grepl("^AMP", Site)) %>%
+  rename(AMP_site = Site, AMP_lat = Latitude, AMP_lon = Longitude)
+
+# Assign each REA site to its nearest AMP site, keeping only those inside the buffer
+rea_buffer <- site_coords %>%
+  filter(!grepl("^AMP", Site)) %>%
+  cross_join(amp_coords) %>%
+  mutate(Distance_m = round(haversine_m(Latitude, Longitude, AMP_lat, AMP_lon))) %>%
+  group_by(Site) %>%
+  slice_min(Distance_m, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  filter(Distance_m <= buffer_m) %>%
+  mutate(
+    AMP_site = gsub("^AMP-", "", AMP_site),
+    AMP_site = recode(AMP_site, "BZ1076B" = "1076B")) %>%
+  select(Site, AMP_site, Distance_m)
+print(rea_buffer, n = Inf)
+
+rea_buffer_scores <- df_rea %>%
+  mutate(Site = trimws(Site)) %>%
+  filter(Indicator_score %in% c("LCC", "FMA", "SD", "SC")) %>%
+  group_by(Site, Indicator_score) %>%
+  summarise(Score = round(mean(Average_score, na.rm = TRUE)), .groups = "drop") %>%
+  inner_join(rea_buffer, by = "Site") %>%
+  semi_join(comparison_df, by = c("AMP_site" = "Site", "Indicator_score"))
+
+agrra_points <- comparison_df %>%
+  distinct(Site, Indicator_score, AGRRA_score)
+
+AGRRA_vs_REA_points_plot <- ggplot() +
+  geom_jitter(data = rea_buffer_scores,
+              aes(x = AMP_site, y = Score, color = "REA sites in buffer"),
+              width = 0.15, height = 0.08, size = 3, alpha = 0.7) +
+  geom_point(data = agrra_points,
+             aes(x = Site, y = AGRRA_score, shape = "AGRRA score"),
+             size = 6, color = "black") +
+  facet_wrap(~Indicator_score) +
+  scale_color_manual(values = c("REA sites in buffer" = "#fdae61")) +
+  scale_shape_manual(values = c("AGRRA score" = 18)) +
+  scale_y_continuous(limits = c(0.7, 5.3), breaks = 1:5) +
+  labs(
+    x = "AMP Site (buffer zone)",
+    y = "Score",
+    color = NULL,
+    shape = NULL) +
+  theme_classic(base_size = 17) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top")
 
 # kruksal-wallis test to determine if there is a sig dif between Surveyors
 
@@ -282,3 +388,7 @@ ggsave("outputs/Surveyor_variabilty.png",
        Surveyor_variability_plot, width = 11, height = 7, dpi = 300)
 ggsave("outputs/Score_difference.png",
        score_diffrence_plot, width = 11, height = 7, dpi = 300)
+ggsave("outputs/Score_comparison_bar.png",
+       Score_comparison_bar_plot, width = 12, height = 8, dpi = 300)
+ggsave("outputs/AGRRA_vs_REA_points.png",
+       AGRRA_vs_REA_points_plot, width = 12, height = 8, dpi = 300)
