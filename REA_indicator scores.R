@@ -259,7 +259,11 @@ Score_comparison_bar_plot <- ggplot(score_bars,
             position = position_dodge(width = 0.8), vjust = -0.4, size = 4.5) +
   facet_wrap(~Indicator_score) +
   scale_y_continuous(limits = c(0, 5.5), breaks = 0:5, expand = c(0, 0)) +
-  scale_fill_identity() +
+  scale_fill_identity(
+    guide = "legend",
+    name = "Score (FMA reversed)",
+    breaks = unname(normal_palette),
+    labels = names(normal_palette)) +
   scale_linetype_manual(values = c("AGRRA" = "solid", "REA" = "dashed")) +
   guides(linetype = guide_legend(override.aes = list(fill = "white"))) +
   labs(
