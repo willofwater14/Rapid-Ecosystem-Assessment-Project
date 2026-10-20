@@ -202,7 +202,7 @@ pearson_by_indicator <- comparison_df %>%
   mutate(
     label = ifelse(is.na(r),
                    paste0("Pearson r = NA\nn = ", n),
-                   paste0("Pearson r = ", round(r, 2), ", p = ", signif(p, 2), "\nn = ", n)))
+                   paste0("Pearson r = ", round(r, 2), "\np = ", signif(p, 2), "\nn = ", n)))
 print(pearson_by_indicator)
 
 Indicator_agreement_plot <- ggplot(comparison_df,
