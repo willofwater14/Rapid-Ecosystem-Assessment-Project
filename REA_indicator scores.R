@@ -264,7 +264,7 @@ Score_comparison_bar_plot <- ggplot(score_bars,
 
 # One AGRRA point per AMP site with the REA sites inside its buffer zone
 
-buffer_m <- 800   # buffer radius around each AMP site, in metres
+buffer_m <- 300   # buffer radius around each AMP site, in metres
 
 haversine_m <- function(lat1, lon1, lat2, lon2) {
   rad <- pi / 180
