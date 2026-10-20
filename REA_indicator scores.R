@@ -243,20 +243,29 @@ score_bars <- comparison_df %>%
   pivot_longer(
     cols = c(AGRRA, REA),
     names_to = "Method",
-    values_to = "Score")
+    values_to = "Score") %>%
+  mutate(
+    # Same score colours as the summary table (FMA uses the reversed scale)
+    Score_colour = ifelse(Indicator_score == "FMA",
+                          reverse_palette[as.character(Score)],
+                          normal_palette[as.character(Score)]))
 
 Score_comparison_bar_plot <- ggplot(score_bars,
-       aes(x = Site, y = Score, fill = Method)) +
-  geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+       aes(x = Site, y = Score, group = Method)) +
+  geom_col(aes(fill = Score_colour, linetype = Method),
+           position = position_dodge(width = 0.8), width = 0.75,
+           color = "black", linewidth = 0.6) +
   geom_text(aes(label = Score),
             position = position_dodge(width = 0.8), vjust = -0.4, size = 4.5) +
   facet_wrap(~Indicator_score) +
   scale_y_continuous(limits = c(0, 5.5), breaks = 0:5, expand = c(0, 0)) +
-  scale_fill_manual(values = c("AGRRA" = "#2c7bb6", "REA" = "#fdae61")) +
+  scale_fill_identity() +
+  scale_linetype_manual(values = c("AGRRA" = "solid", "REA" = "dashed")) +
+  guides(linetype = guide_legend(override.aes = list(fill = "white"))) +
   labs(
     x = "AMP Site",
     y = "Score",
-    fill = "Method") +
+    linetype = "Method") +
   theme_classic(base_size = 17) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
