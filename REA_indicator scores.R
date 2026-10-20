@@ -207,7 +207,7 @@ pearson_by_indicator <- comparison_df %>%
     p = if (testable) cor.test(AGRRA_score, Rapid_score, method = "pearson")$p.value else NA_real_,
     .groups = "drop") %>%
   mutate(
-    p_text = ifelse(!is.na(p) & p < 0.001, "p < 0.001", paste0("p = ", signif(p, 2))),
+    p_text = ifelse(!is.na(p) & p < 0.001, "p-value < 0.001", paste0("p-value = ", signif(p, 2))),
     label = case_when(
       testable ~ paste0("Pearson r = ", round(r, 2), "\n", p_text, "\nn = ", n),
       n < 3 ~ paste0("Pearson r: too few sites\nn = ", n),
