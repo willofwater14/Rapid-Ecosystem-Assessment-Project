@@ -190,19 +190,31 @@ pearson_result <- cor.test(
   method = "pearson")
 r_value <- round(pearson_result$estimate, 3)
 
-# Pearson r per indicator (NA when an indicator has < 3 sites or no variation in scores)
+# Pearson r per indicator. Pearson needs >= 3 sites and variation on both axes;
+# when it can't be computed the label says why and gives exact score agreement instead
 pearson_by_indicator <- comparison_df %>%
+  filter(!is.na(AGRRA_score), !is.na(Rapid_score)) %>%
   group_by(Indicator_score) %>%
   summarise(
     n = n(),
-    testable = n >= 3 & sd(AGRRA_score) > 0 & sd(Rapid_score) > 0,
+    agree = sum(AGRRA_score == Rapid_score),
+    agrra_constant = n_distinct(AGRRA_score) == 1,
+    rea_constant = n_distinct(Rapid_score) == 1,
+    agrra_value = first(AGRRA_score),
+    rea_value = first(Rapid_score),
+    testable = n >= 3 & !agrra_constant & !rea_constant,
     r = if (testable) cor.test(AGRRA_score, Rapid_score, method = "pearson")$estimate else NA_real_,
     p = if (testable) cor.test(AGRRA_score, Rapid_score, method = "pearson")$p.value else NA_real_,
     .groups = "drop") %>%
   mutate(
-    label = ifelse(is.na(r),
-                   paste0("Pearson r = NA\nn = ", n),
-                   paste0("Pearson r = ", round(r, 2), "\np = ", signif(p, 2), "\nn = ", n)))
+    p_text = ifelse(!is.na(p) & p < 0.001, "p < 0.001", paste0("p = ", signif(p, 2))),
+    label = case_when(
+      testable ~ paste0("Pearson r = ", round(r, 2), "\n", p_text, "\nn = ", n),
+      n < 3 ~ paste0("Pearson r: too few sites\nn = ", n),
+      agrra_constant ~ paste0("Pearson r: not computable\n(all AGRRA scores = ", agrra_value, ")\n",
+                              "Exact match = ", agree, "/", n),
+      rea_constant ~ paste0("Pearson r: not computable\n(all REA scores = ", rea_value, ")\n",
+                            "Exact match = ", agree, "/", n)))
 print(pearson_by_indicator)
 
 Indicator_agreement_plot <- ggplot(comparison_df,
