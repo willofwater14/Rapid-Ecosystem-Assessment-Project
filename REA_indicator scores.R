@@ -243,20 +243,101 @@ score_bars <- comparison_df %>%
   pivot_longer(
     cols = c(AGRRA, REA),
     names_to = "Method",
-    values_to = "Score")
+    values_to = "Score") %>%
+  mutate(
+    # Same score colours as the summary table (FMA uses the reversed scale)
+    Score_colour = ifelse(Indicator_score == "FMA",
+                          reverse_palette[as.character(Score)],
+                          normal_palette[as.character(Score)]))
 
 Score_comparison_bar_plot <- ggplot(score_bars,
-       aes(x = Site, y = Score, fill = Method)) +
-  geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+       aes(x = Site, y = Score, group = Method)) +
+  geom_col(aes(fill = Score_colour, linetype = Method),
+           position = position_dodge(width = 0.8), width = 0.75,
+           color = "black", linewidth = 0.6) +
   geom_text(aes(label = Score),
             position = position_dodge(width = 0.8), vjust = -0.4, size = 4.5) +
   facet_wrap(~Indicator_score) +
   scale_y_continuous(limits = c(0, 5.5), breaks = 0:5, expand = c(0, 0)) +
-  scale_fill_manual(values = c("AGRRA" = "#2c7bb6", "REA" = "#fdae61")) +
+  scale_fill_identity(
+    guide = "legend",
+    name = "Score (FMA reversed)",
+    breaks = unname(normal_palette),
+    labels = names(normal_palette)) +
+  scale_linetype_manual(values = c("AGRRA" = "solid", "REA" = "dashed")) +
+  guides(linetype = guide_legend(override.aes = list(fill = "white"))) +
   labs(
     x = "AMP Site",
     y = "Score",
-    fill = "Method") +
+    linetype = "Method") +
+  theme_classic(base_size = 17) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top")
+
+# One AGRRA point per AMP site with the REA sites inside its buffer zone
+
+buffer_m <- 300   # buffer radius around each AMP site, in metres
+
+haversine_m <- function(lat1, lon1, lat2, lon2) {
+  rad <- pi / 180
+  dlat <- (lat2 - lat1) * rad
+  dlon <- (lon2 - lon1) * rad
+  a <- sin(dlat / 2)^2 + cos(lat1 * rad) * cos(lat2 * rad) * sin(dlon / 2)^2
+  2 * 6371000 * asin(sqrt(a))
+}
+
+site_coords <- df_rea %>%
+  mutate(Site = trimws(Site)) %>%
+  group_by(Site) %>%
+  summarise(Latitude = first(Latitude), Longitude = first(Longitude), .groups = "drop")
+
+amp_coords <- site_coords %>%
+  filter(grepl("^AMP", Site)) %>%
+  rename(AMP_site = Site, AMP_lat = Latitude, AMP_lon = Longitude)
+
+# Assign each REA site to its nearest AMP site, keeping only those inside the buffer
+rea_buffer <- site_coords %>%
+  filter(!grepl("^AMP", Site)) %>%
+  cross_join(amp_coords) %>%
+  mutate(Distance_m = round(haversine_m(Latitude, Longitude, AMP_lat, AMP_lon))) %>%
+  group_by(Site) %>%
+  slice_min(Distance_m, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  filter(Distance_m <= buffer_m) %>%
+  mutate(
+    AMP_site = gsub("^AMP-", "", AMP_site),
+    AMP_site = recode(AMP_site, "BZ1076B" = "1076B")) %>%
+  select(Site, AMP_site, Distance_m)
+print(rea_buffer, n = Inf)
+
+rea_buffer_scores <- df_rea %>%
+  mutate(Site = trimws(Site)) %>%
+  filter(Indicator_score %in% c("LCC", "FMA", "SD", "SC")) %>%
+  group_by(Site, Indicator_score) %>%
+  summarise(Score = round(mean(Average_score, na.rm = TRUE)), .groups = "drop") %>%
+  inner_join(rea_buffer, by = "Site") %>%
+  semi_join(comparison_df, by = c("AMP_site" = "Site", "Indicator_score"))
+
+agrra_points <- comparison_df %>%
+  distinct(Site, Indicator_score, AGRRA_score)
+
+AGRRA_vs_REA_points_plot <- ggplot() +
+  geom_jitter(data = rea_buffer_scores,
+              aes(x = AMP_site, y = Score, color = "REA sites in buffer"),
+              width = 0.15, height = 0.08, size = 3, alpha = 0.7) +
+  geom_point(data = agrra_points,
+             aes(x = Site, y = AGRRA_score, shape = "AGRRA score"),
+             size = 6, color = "black") +
+  facet_wrap(~Indicator_score) +
+  scale_color_manual(values = c("REA sites in buffer" = "#fdae61")) +
+  scale_shape_manual(values = c("AGRRA score" = 18)) +
+  scale_y_continuous(limits = c(0.7, 5.3), breaks = 1:5) +
+  labs(
+    x = "AMP Site (buffer zone)",
+    y = "Score",
+    color = NULL,
+    shape = NULL) +
   theme_classic(base_size = 17) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
@@ -312,3 +393,5 @@ ggsave("outputs/Score_difference.png",
        score_diffrence_plot, width = 11, height = 7, dpi = 300)
 ggsave("outputs/Score_comparison_bar.png",
        Score_comparison_bar_plot, width = 12, height = 8, dpi = 300)
+ggsave("outputs/AGRRA_vs_REA_points.png",
+       AGRRA_vs_REA_points_plot, width = 12, height = 8, dpi = 300)
