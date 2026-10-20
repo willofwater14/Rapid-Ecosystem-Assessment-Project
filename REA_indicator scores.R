@@ -262,38 +262,68 @@ Score_comparison_bar_plot <- ggplot(score_bars,
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "top")
 
-# One AGRRA point per AMP site with the individual surveyor REA scores around it
+# One AGRRA point per AMP site with the REA sites inside its buffer zone
 
-rea_surveyor_points <- df_rea %>%
-  filter(grepl("^AMP", Site), Indicator_score %in% c("LCC", "FMA", "SD", "SC")) %>%
-  select(Site, Indicator_score, ANLI, ELAL, NOMC, WICA) %>%
-  pivot_longer(
-    cols = c(ANLI, ELAL, NOMC, WICA),
-    names_to = "Surveyor",
-    values_to = "Score") %>%
-  filter(!is.na(Score)) %>%
+buffer_m <- 800   # buffer radius around each AMP site, in metres
+
+haversine_m <- function(lat1, lon1, lat2, lon2) {
+  rad <- pi / 180
+  dlat <- (lat2 - lat1) * rad
+  dlon <- (lon2 - lon1) * rad
+  a <- sin(dlat / 2)^2 + cos(lat1 * rad) * cos(lat2 * rad) * sin(dlon / 2)^2
+  2 * 6371000 * asin(sqrt(a))
+}
+
+site_coords <- df_rea %>%
+  mutate(Site = trimws(Site)) %>%
+  group_by(Site) %>%
+  summarise(Latitude = first(Latitude), Longitude = first(Longitude), .groups = "drop")
+
+amp_coords <- site_coords %>%
+  filter(grepl("^AMP", Site)) %>%
+  rename(AMP_site = Site, AMP_lat = Latitude, AMP_lon = Longitude)
+
+# Assign each REA site to its nearest AMP site, keeping only those inside the buffer
+rea_buffer <- site_coords %>%
+  filter(!grepl("^AMP", Site)) %>%
+  cross_join(amp_coords) %>%
+  mutate(Distance_m = round(haversine_m(Latitude, Longitude, AMP_lat, AMP_lon))) %>%
+  group_by(Site) %>%
+  slice_min(Distance_m, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  filter(Distance_m <= buffer_m) %>%
   mutate(
-    Site = gsub("^AMP-", "", Site),
-    Site = recode(Site, "BZ1076B" = "1076B")) %>%
-  semi_join(comparison_df, by = c("Site", "Indicator_score"))
+    AMP_site = gsub("^AMP-", "", AMP_site),
+    AMP_site = recode(AMP_site, "BZ1076B" = "1076B")) %>%
+  select(Site, AMP_site, Distance_m)
+print(rea_buffer, n = Inf)
+
+rea_buffer_scores <- df_rea %>%
+  mutate(Site = trimws(Site)) %>%
+  filter(Indicator_score %in% c("LCC", "FMA", "SD", "SC")) %>%
+  group_by(Site, Indicator_score) %>%
+  summarise(Score = round(mean(Average_score, na.rm = TRUE)), .groups = "drop") %>%
+  inner_join(rea_buffer, by = "Site") %>%
+  semi_join(comparison_df, by = c("AMP_site" = "Site", "Indicator_score"))
 
 agrra_points <- comparison_df %>%
   distinct(Site, Indicator_score, AGRRA_score)
 
 AGRRA_vs_REA_points_plot <- ggplot() +
-  geom_jitter(data = rea_surveyor_points,
-              aes(x = Site, y = Score, color = Surveyor),
+  geom_jitter(data = rea_buffer_scores,
+              aes(x = AMP_site, y = Score, color = "REA sites in buffer"),
               width = 0.15, height = 0.08, size = 3, alpha = 0.7) +
   geom_point(data = agrra_points,
              aes(x = Site, y = AGRRA_score, shape = "AGRRA score"),
              size = 6, color = "black") +
   facet_wrap(~Indicator_score) +
+  scale_color_manual(values = c("REA sites in buffer" = "#fdae61")) +
   scale_shape_manual(values = c("AGRRA score" = 18)) +
   scale_y_continuous(limits = c(0.7, 5.3), breaks = 1:5) +
   labs(
-    x = "AMP Site",
+    x = "AMP Site (buffer zone)",
     y = "Score",
-    color = "REA Surveyor",
+    color = NULL,
     shape = NULL) +
   theme_classic(base_size = 17) +
   theme(
