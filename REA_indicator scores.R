@@ -236,6 +236,32 @@ Indicator_agreement_plot <- ggplot(comparison_df,
   theme_classic(base_size = 17) +
   theme(legend.position = "none")
 
+# Bar chart comparing AGRRA and REA scores at each AMP site, per indicator
+
+score_bars <- comparison_df %>%
+  select(Site, Indicator_score, AGRRA = AGRRA_score, REA = Rapid_score) %>%
+  pivot_longer(
+    cols = c(AGRRA, REA),
+    names_to = "Method",
+    values_to = "Score")
+
+Score_comparison_bar_plot <- ggplot(score_bars,
+       aes(x = Site, y = Score, fill = Method)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+  geom_text(aes(label = Score),
+            position = position_dodge(width = 0.8), vjust = -0.4, size = 4.5) +
+  facet_wrap(~Indicator_score) +
+  scale_y_continuous(limits = c(0, 5.5), breaks = 0:5, expand = c(0, 0)) +
+  scale_fill_manual(values = c("AGRRA" = "#2c7bb6", "REA" = "#fdae61")) +
+  labs(
+    x = "AMP Site",
+    y = "Score",
+    fill = "Method") +
+  theme_classic(base_size = 17) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top")
+
 # kruksal-wallis test to determine if there is a sig dif between Surveyors
 
 Surveyor_scores <- df_rea %>% 
@@ -284,3 +310,5 @@ ggsave("outputs/Surveyor_variabilty.png",
        Surveyor_variability_plot, width = 11, height = 7, dpi = 300)
 ggsave("outputs/Score_difference.png",
        score_diffrence_plot, width = 11, height = 7, dpi = 300)
+ggsave("outputs/Score_comparison_bar.png",
+       Score_comparison_bar_plot, width = 12, height = 8, dpi = 300)
